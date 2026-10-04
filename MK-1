@@ -1,0 +1,448 @@
+-- =======================================================
+-- PROJECT: MAGIC ARMOR MK1 (VERDE CLARO/ESCURO & ATRIBUTOS)
+-- Compatível com Delta Executor (Mobile)
+-- Recurso: Gravidade Zero (Segurar Pulo) + Natação Rápida
+-- =======================================================
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Limpa UI antiga se existir
+if PlayerGui:FindFirstChild("MK1_SystemUI") then
+    PlayerGui.MK1_SystemUI:Destroy()
+end
+
+_G.MK1_Equipped = false
+_G.MK1_AttackMode = false
+_G.MK1_ArmorFolder = nil
+_G.MK1_GatlingFolder = nil
+_G.MK1_OriginalShirt = nil
+_G.MK1_OriginalPants = nil
+_G.MK1_OriginalBodyColors = {}
+_G.MK1_HiddenAccessories = {}
+_G.MK1_JumpConnection = nil
+_G.MK1_SwimConnection = nil
+
+-- Paleta de Cores (Verde Escuro + Destaques Verde Claro)
+local DarkGreenStone  = Color3.fromRGB(30, 55, 38)   -- Verde Escuro Base
+local BrightGreen     = Color3.fromRGB(120, 240, 140) -- Verde Claro Brilhante
+local VisorBlack      = Color3.fromRGB(10, 15, 12)   -- Viseira
+local DarkMetalColor  = Color3.fromRGB(25, 30, 28)   -- Metralhadora
+local ChainmailColor  = Color3.fromRGB(30, 45, 35)   -- Saia de malha
+local GoldCrossColor  = Color3.fromRGB(180, 140, 60)  -- Cruz do escudo
+
+local SHIRT_ID = "http://www.roblox.com/asset/?id=14034550513"
+local PANTS_ID = "http://www.roblox.com/asset/?id=5128829723"
+
+-- ==========================================
+-- FUNÇÃO BASE DE SOLDA (CreateArmorPart)
+-- ==========================================
+local function CreateArmorPart(parent, targetPart, size, offset, color, material, name)
+    if not targetPart then return nil end
+
+    local part = Instance.new("Part")
+    part.Name = "MK1_" .. name
+    part.Size = size
+    part.Color = color or DarkGreenStone
+    part.Material = material or Enum.Material.Granite
+    part.CanCollide = false
+    part.Massless = true
+    part.CFrame = targetPart.CFrame * offset
+    part.Parent = parent
+
+    local weld = Instance.new("WeldConstraint")
+    weld.Part0 = targetPart
+    weld.Part1 = part
+    weld.Parent = part
+
+    return part
+end
+
+-- ==========================================
+-- MONTAGEM DA METRALHADORA (REDUZIDA)
+-- ==========================================
+local function BuildGatlingGun(rightArm, isAttackMode)
+    if _G.MK1_GatlingFolder then
+        _G.MK1_GatlingFolder:Destroy()
+        _G.MK1_GatlingFolder = nil
+    end
+
+    local folder = Instance.new("Folder")
+    folder.Name = "MK1_Gatling_Model"
+    folder.Parent = rightArm.Parent
+
+    local gunRotation
+    local gunPosOffset
+
+    if isAttackMode then
+        gunRotation = CFrame.Angles(0, 0, 0)
+        gunPosOffset = CFrame.new(0, -0.7, -1.3) * gunRotation
+    else
+        gunRotation = CFrame.Angles(math.rad(-90), 0, 0)
+        gunPosOffset = CFrame.new(0.8, -0.6, -0.2) * gunRotation
+    end
+
+    CreateArmorPart(folder, rightArm, Vector3.new(0.9, 1.1, 1.8), gunPosOffset, DarkMetalColor, Enum.Material.Metal, "GatlingBody")
+
+    for i = 1, 6 do
+        local rad = math.rad(i * 60)
+        local x = math.cos(rad) * 0.28
+        local y = math.sin(rad) * 0.28
+        local barrelOffset = gunPosOffset * CFrame.new(x, y, -1.8)
+        CreateArmorPart(folder, rightArm, Vector3.new(0.18, 0.18, 2.4), barrelOffset, BrightGreen, Enum.Material.SmoothPlastic, "Barrel"..i)
+    end
+
+    _G.MK1_GatlingFolder = folder
+end
+
+-- ==========================================
+-- CONSTRUÇÃO DA ARMADURA (COMPACTA - VERDE CLARO/ESCURO)
+-- ==========================================
+local function BuildMK1Armor(character)
+    local folder = Instance.new("Folder")
+    folder.Name = "MK1_Armor_Model"
+    folder.Parent = character
+
+    local head = character:FindFirstChild("Head")
+    local torso = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+    local leftArm = character:FindFirstChild("Left Arm") or character:FindFirstChild("LeftUpperArm")
+    local rightArm = character:FindFirstChild("Right Arm") or character:FindFirstChild("RightUpperArm")
+    local leftLeg = character:FindFirstChild("Left Leg") orAqui estão as alterações aplicadas ao script da **Magic Armor MK1**:
+
+* **Escala Reduzida:** A armadura e o personagem foram redimensionados para uma escala ainda menor e mais ágil (~1.2x).
+* **Nova Paleta de Cores (Verde Claro):** Várias partes da armadura (como o peitoral principal, ombreiras e capacete) agora usam **Verde Claro** (`Color3.fromRGB(120, 220, 140)`), criando um contraste com a estrutura e o tom de pele verde escuro.
+* **Gravidade Zero / Queda Lenta:** Ao segurar ou pressionar o botão de pulo enquanto estiver no ar com a armadura equipada, a gravidade do personagem reduz a zero e a velocidade de queda diminui suavemente, permitindo flutuar/planar no ar.
+* **Natação Acelerada:** A propriedade `SwimmingSpeed` foi configurada para o triplo do normal assim que a armadura é ativada, permitindo nadar em alta velocidade.
+
+---
+
+### Script MK1 — Compacta com Detalhes Verde Claro & Habilidades Passivas
+
+```lua
+-- =======================================================
+-- PROJECT: MAGIC ARMOR MK1 (VERDE CLARO - COMPACTA)
+-- Compatível com Delta Executor (Mobile)
+-- Novas Habilidades Passivas: Natação Rápida + Gravidade Zero ao Pular
+-- =======================================================
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Limpa UI antiga se existir
+if PlayerGui:FindFirstChild("MK1_SystemUI") then
+    PlayerGui.MK1_SystemUI:Destroy()
+end
+
+_G.MK1_Equipped = false
+_G.MK1_AttackMode = false
+_G.MK1_ArmorFolder = nil
+_G.MK1_GatlingFolder = nil
+_G.MK1_OriginalShirt = nil
+_G.MK1_OriginalPants = nil
+_G.MK1_OriginalBodyColors = {}
+_G.MK1_HiddenAccessories = {}
+_G.MK1_JumpConnection = nil
+
+-- Paleta de Cores e Materiais
+local LightGreen     = Color3.fromRGB(120, 220, 140) -- Partes Verde Claro
+local DarkGreenStone = Color3.fromRGB(35, 65, 45)    -- Pele e base
+local DeepGreenStone = Color3.fromRGB(20, 40, 28)    -- Detalhes escuros
+local VisorBlack     = Color3.fromRGB(10, 15, 12)    -- Viseira
+local DarkMetalColor = Color3.fromRGB(25, 30, 28)    -- Metralhadora
+local ChainmailColor = Color3.fromRGB(30, 45, 35)    -- Saia de malha
+local GoldCrossColor = Color3.fromRGB(180, 140, 60)   -- Cruz do escudo
+
+local SHIRT_ID = "[http://www.roblox.com/asset/?id=14034550513](http://www.roblox.com/asset/?id=14034550513)"
+local PANTS_ID = "[http://www.roblox.com/asset/?id=5128829723](http://www.roblox.com/asset/?id=5128829723)"
+
+-- ==========================================
+-- FUNÇÃO BASE DE SOLDA (CreateArmorPart)
+-- ==========================================
+local function CreateArmorPart(parent, targetPart, size, offset, color, material, name)
+    if not targetPart then return nil end
+
+    local part = Instance.new("Part")
+    part.Name = "MK1_" .. name
+    part.Size = size
+    part.Color = color or LightGreen
+    part.Material = material or Enum.Material.Granite
+    part.CanCollide = false
+    part.Massless = true
+    part.CFrame = targetPart.CFrame * offset
+    part.Parent = parent
+
+    local weld = Instance.new("WeldConstraint")
+    weld.Part0 = targetPart
+    weld.Part1 = part
+    weld.Parent = part
+
+    return part
+end
+
+-- ==========================================
+-- MONTAGEM DA METRALHADORA
+-- ==========================================
+local function BuildGatlingGun(rightArm, isAttackMode)
+    if _G.MK1_GatlingFolder then
+        _G.MK1_GatlingFolder:Destroy()
+        _G.MK1_GatlingFolder = nil
+    end
+
+    local folder = Instance.new("Folder")
+    folder.Name = "MK1_Gatling_Model"
+    folder.Parent = rightArm.Parent
+
+    local gunRotation
+    local gunPosOffset
+
+    if isAttackMode then
+        gunRotation = CFrame.Angles(0, 0, 0)
+        gunPosOffset = CFrame.new(0, -0.6, -1.2) * gunRotation
+    else
+        gunRotation = CFrame.Angles(math.rad(-90), 0, 0)
+        gunPosOffset = CFrame.new(0.7, -0.5, -0.2) * gunRotation
+    end
+
+    -- Corpo Central
+    CreateArmorPart(folder, rightArm, Vector3.new(0.9, 1.1, 1.8), gunPosOffset, DarkMetalColor, Enum.Material.Metal, "GatlingBody")
+
+    -- 6 Canos Circulares
+    for i = 1, 6 do
+        local rad = math.rad(i * 60)
+        local x = math.cos(rad) * 0.28
+        local y = math.sin(rad) * 0.28
+        local barrelOffset = gunPosOffset * CFrame.new(x, y, -1.8)
+        CreateArmorPart(folder, rightArm, Vector3.new(0.16, 0.16, 2.4), barrelOffset, LightGreen, Enum.Material.Metal, "Barrel"..i)
+    end
+
+    _G.MK1_GatlingFolder = folder
+end
+
+-- ==========================================
+-- CONSTRUÇÃO DA ARMADURA (COMPACTA)
+-- ==========================================
+local function BuildMK1Armor(character)
+    local folder = Instance.new("Folder")
+    folder.Name = "MK1_Armor_Model"
+    folder.Parent = character
+
+    local head = character:FindFirstChild("Head")
+    local torso = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+    local leftArm = character:FindFirstChild("Left Arm") or character:FindFirstChild("LeftUpperArm")
+    local rightArm = character:FindFirstChild("Right Arm") or character:FindFirstChild("RightUpperArm")
+    local leftLeg = character:FindFirstChild("Left Leg") or character:FindFirstChild("LeftUpperLeg")
+    local rightLeg = character:FindFirstChild("Right Leg") or character:FindFirstChild("RightUpperLeg")
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+    -- Atributos de Velocidade e Tamanho Compacto (~1.2x)
+    if humanoid then
+        humanoid.WalkSpeed = 26
+        humanoid.JumpPower = 70
+        
+        -- Natação Rápida
+        pcall(function()
+            humanoid.SwimmingSpeed = 65
+        end)
+        
+        local hs = humanoid:FindFirstChild("BodyHeightScale") or Instance.new("NumberValue", humanoid)
+        hs.Name = "BodyHeightScale"
+        hs.Value = 1.2
+
+        local ws = humanoid:FindFirstChild("BodyWidthScale") or Instance.new("NumberValue", humanoid)
+        ws.Name = "BodyWidthScale"
+        ws.Value = 1.1
+
+        local ds = humanoid:FindFirstChild("BodyDepthScale") or Instance.new("NumberValue", humanoid)
+        ds.Name = "BodyDepthScale"
+        ds.Value = 1.1
+
+        local headScale = humanoid:FindFirstChild("HeadScale") or Instance.new("NumberValue", humanoid)
+        headScale.Name = "HeadScale"
+        headScale.Value = 1.1
+    end
+
+    -- Pele Verde Escuro
+    _G.MK1_OriginalBodyColors = {}
+    local bodyColors = character:FindFirstChildOfClass("BodyColors")
+    if bodyColors then
+        _G.MK1_OriginalBodyColors["Head"] = bodyColors.HeadColor3
+        _G.MK1_OriginalBodyColors["Torso"] = bodyColors.TorsoColor3
+        _G.MK1_OriginalBodyColors["LeftArm"] = bodyColors.LeftArmColor3
+        _G.MK1_OriginalBodyColors["RightArm"] = bodyColors.RightArmColor3
+        _G.MK1_OriginalBodyColors["LeftLeg"] = bodyColors.LeftLegColor3
+        _G.MK1_OriginalBodyColors["RightLeg"] = bodyColors.RightLegColor3
+
+        bodyColors.HeadColor3 = DarkGreenStone
+        bodyColors.TorsoColor3 = DarkGreenStone
+        bodyColors.LeftArmColor3 = DarkGreenStone
+        bodyColors.RightArmColor3 = DarkGreenStone
+        bodyColors.LeftLegColor3 = DarkGreenStone
+        bodyColors.RightLegColor3 = DarkGreenStone
+    end
+
+    -- Ocultar Acessórios
+    _G.MK1_HiddenAccessories = {}
+    for _, child in ipairs(character:GetChildren()) do
+        if child:IsA("Accessory") then
+            table.insert(_G.MK1_HiddenAccessories, child)
+            child.Parent = nil
+        end
+    end
+
+    -- Texturas das Roupas
+    local shirt = character:FindFirstChildOfClass("Shirt") or Instance.new("Shirt", character)
+    local pants = character:FindFirstChildOfClass("Pants") or Instance.new("Pants", character)
+    _G.MK1_OriginalShirt = shirt.ShirtTemplate
+    _G.MK1_OriginalPants = pants.PantsTemplate
+    shirt.ShirtTemplate = SHIRT_ID
+    pants.PantsTemplate = PANTS_ID
+
+    -- CAPACETE (Mistura Verde Claro e Escuro)
+    if head then
+        CreateArmorPart(folder, head, Vector3.new(1.3, 1.2, 1.3), CFrame.new(0, 0.15, 0), LightGreen, Enum.Material.Granite, "HelmetBase")
+        CreateArmorPart(folder, head, Vector3.new(0.25, 0.4, 1.3), CFrame.new(0, 0.65, 0), DeepGreenStone, Enum.Material.Granite, "HelmetCrest")
+        CreateArmorPart(folder, head, Vector3.new(1.1, 0.5, 0.12), CFrame.new(0, 0.08, -0.65), LightGreen, Enum.Material.Granite, "VisorFrame")
+        for i = -2, 2 do
+            CreateArmorPart(folder, head, Vector3.new(0.85, 0.06, 0.15), CFrame.new(0, 0.08 + (i * 0.09), -0.67), VisorBlack, Enum.Material.SmoothPlastic, "VisorSlot"..i)
+        end
+    end
+
+    -- PEITORAL VERDE CLARO & CINTURA
+    if torso then
+        CreateArmorPart(folder, torso, Vector3.new(2.3, 2.0, 1.5), CFrame.new(0, 0.1, 0), LightGreen, Enum.Material.Granite, "ChestPlate")
+        CreateArmorPart(folder, torso, Vector3.new(2.4, 0.7, 1.6), CFrame.new(0, 0.5, 0), DeepGreenStone, Enum.Material.Granite, "UpperChestRim")
+        CreateArmorPart(folder, torso, Vector3.new(2.1, 0.5, 1.4), CFrame.new(0, -0.7, 0), LightGreen, Enum.Material.Granite, "BeltPlate")
+
+        CreateArmorPart(folder, torso, Vector3.new(1.8, 1.0, 0.12), CFrame.new(0, -1.1, -0.75), ChainmailColor, Enum.Material.Fabric, "MailFront")
+        CreateArmorPart(folder, torso, Vector3.new(1.8, 1.0, 0.12), CFrame.new(0, -1.1, 0.75), ChainmailColor, Enum.Material.Fabric, "MailBack")
+        CreateArmorPart(folder, torso, Vector3.new(0.12, 1.0, 1.3), CFrame.new(-1.0, -1.1, 0), ChainmailColor, Enum.Material.Fabric, "MailLeft")
+        CreateArmorPart(folder, torso, Vector3.new(0.12, 1.0, 1.3), CFrame.new(1.0, -1.1, 0), ChainmailColor, Enum.Material.Fabric, "MailRight")
+    end
+
+    -- BRAÇO DIREITO
+    if rightArm then
+        CreateArmorPart(folder, rightArm, Vector3.new(1.4, 1.1, 1.4), CFrame.new(0, 0.55, 0), LightGreen, Enum.Material.Granite, "R_ShoulderPad")
+        BuildGatlingGun(rightArm, false)
+    end
+
+    -- BRAÇO ESQUERDO + ESCUDO TORRE
+    if leftArm then
+        CreateArmorPart(folder, leftArm, Vector3.new(1.4, 1.1, 1.4), CFrame.new(0, 0.55, 0), LightGreen, Enum.Material.Granite, "L_ShoulderPad")
+        
+        local shieldOffset = CFrame.new(-0.8, -0.1, -0.1) * CFrame.Angles(0, math.rad(15), 0)
+        CreateArmorPart(folder, leftArm, Vector3.new(0.35, 3.6, 2.0), shieldOffset, LightGreen, Enum.Material.Granite, "ShieldPlate")
+        CreateArmorPart(folder, leftArm, Vector3.new(0.4, 3.7, 0.25), shieldOffset * CFrame.new(-0.03, 0, 0), DeepGreenStone, Enum.Material.Granite, "ShieldBorder")
+        
+        CreateArmorPart(folder, leftArm, Vector3.new(0.45, 2.2, 0.25), shieldOffset * CFrame.new(-0.06, 0.1, 0), GoldCrossColor, Enum.Material.Metal, "CrossVertical")
+        CreateArmorPart(folder, leftArm, Vector3.new(0.45, 0.3, 1.1), shieldOffset * CFrame.new(-0.06, 0.4, 0), GoldCrossColor, Enum.Material.Metal, "CrossHorizontal")
+    end
+
+    -- PERNAS & BOTAS
+    if leftLeg then
+        CreateArmorPart(folder, leftLeg, Vector3.new(1.3, 1.6, 1.3), CFrame.new(0, -0.1, 0), DarkGreenStone, Enum.Material.Granite, "L_LegArmor")
+        CreateArmorPart(folder, leftLeg, Vector3.new(1.4, 0.7, 1.5), CFrame.new(0, -0.6, -0.1), LightGreen, Enum.Material.Granite, "L_Boot")
+    end
+    if rightLeg then
+        CreateArmorPart(folder, rightLeg, Vector3.new(1.3, 1.6, 1.3), CFrame.new(0, -0.1, 0), DarkGreenStone, Enum.Material.Granite, "R_LegArmor")
+        CreateArmorPart(folder, rightLeg, Vector3.new(1.4, 0.7, 1.5), CFrame.new(0, -0.6, -0.1), LightGreen, Enum.Material.Granite, "R_Boot")
+    end
+
+    -- HABILIDADE: GRAVIDADE ZERO / QUEDA LENTA AO MANTER O PULO
+    if _G.MK1_JumpConnection then _G.MK1_JumpConnection:Disconnect() end
+    
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    local bodyVelocity = nil
+
+    _G.MK1_JumpConnection = UserInputService.JumpRequest:Connect(function()
+        if not _G.MK1_Equipped or not character or not hrp then return end
+
+        if humanoid:GetState() == Enum.HumanoidStateType.Freefall or humanoid:GetState() == Enum.HumanoidStateType.Jumping then
+            if not bodyVelocity or not bodyVelocity.Parent then
+                bodyVelocity = Instance.new("BodyVelocity")
+                bodyVelocity.Name = "MK1_ZeroGravity"
+                bodyVelocity.MaxForce = Vector3.new(0, 100000, 0)
+                bodyVelocity.Velocity = Vector3.new(0, -2, 0) -- Queda lenta / Gravidade Zero
+                bodyVelocity.Parent = hrp
+
+                task.delay(1.5, function()
+                    if bodyVelocity then
+                        bodyVelocity:Destroy()
+                        bodyVelocity = nil
+                    end
+                end)
+            end
+        end
+    end)
+
+    return folder
+end
+
+-- ==========================================
+-- SISTEMA DE TRANSFORMAÇÃO & ATAQUE
+-- ==========================================
+local function ToggleMK1()
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+
+    if _G.MK1_Equipped then
+        if _G.MK1_ArmorFolder then _G.MK1_ArmorFolder:Destroy() _G.MK1_ArmorFolder = nil end
+        if _G.MK1_GatlingFolder then _G.MK1_GatlingFolder:Destroy() _G.MK1_GatlingFolder = nil end
+        if _G.MK1_JumpConnection then _G.MK1_JumpConnection:Disconnect() _G.MK1_JumpConnection = nil end
+
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.WalkSpeed = 16
+            humanoid.JumpPower = 50
+            pcall(function() humanoid.SwimmingSpeed = 16 end)
+            for _, scaleName in ipairs({"BodyHeightScale", "BodyWidthScale", "BodyDepthScale", "HeadScale"}) do
+                local s = humanoid:FindFirstChild(scaleName)
+                if s then s.Value = 1.0 end
+            end
+        end
+
+        local shirt = character:FindFirstChildOfClass("Shirt")
+        local pants = character:FindFirstChildOfClass("Pants")
+        if shirt and _G.MK1_OriginalShirt then shirt.ShirtTemplate = _G.MK1_OriginalShirt end
+        if pants and _G.MK1_OriginalPants then pants.PantsTemplate = _G.MK1_OriginalPants end
+
+        local bodyColors = character:FindFirstChildOfClass("BodyColors")
+        if bodyColors and _G.MK1_OriginalBodyColors then
+            if _G.MK1_OriginalBodyColors["Head"] then bodyColors.HeadColor3 = _G.MK1_OriginalBodyColors["Head"] end
+            if _G.MK1_OriginalBodyColors["Torso"] then bodyColors.TorsoColor3 = _G.MK1_OriginalBodyColors["Torso"] end
+            if _G.MK1_OriginalBodyColors["LeftArm"] then bodyColors.LeftArmColor3 = _G.MK1_OriginalBodyColors["LeftArm"] end
+            if _G.MK1_OriginalBodyColors["RightArm"] then bodyColors.RightArmColor3 = _G.MK1_OriginalBodyColors["RightArm"] end
+            if _G.MK1_OriginalBodyColors["LeftLeg"] then bodyColors.LeftLegColor3 = _G.MK1_OriginalBodyColors["LeftLeg"] end
+            if _G.MK1_OriginalBodyColors["RightLeg"] then bodyColors.RightLegColor3 = _G.MK1_OriginalBodyColors["RightLeg"] end
+        end
+
+        if _G.MK1_HiddenAccessories then
+            for _, acc in ipairs(_G.MK1_HiddenAccessories) do
+                if acc then acc.Parent = character end
+            end
+            _G.MK1_HiddenAccessories = {}
+        end
+
+        _G.MK1_Equipped = false
+        _G.MK1_AttackMode = false
+    else
+        _G.MK1_ArmorFolder = BuildMK1Armor(character)
+        _G.MK1_Equipped = true
+    end
+end
+
+local function ToggleGatlingAttackMode()
+    if not _G.MK1_Equipped then return end
+    local character = LocalPlayer.Character
+    if not character then return end
+    local rightArm = character:FindFirstChild("Right Arm") or character:FindFirstChild("RightUpperArm")
+    if not rightArm then return end
+
+    _G.MK1_AttackMode = not _G.MK1_AttackMode
+    BuildGatlingGun(rightArm, _G.MK1
